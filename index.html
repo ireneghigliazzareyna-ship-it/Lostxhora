@@ -203,8 +203,9 @@
                 globalData = await response.json();
                 if (!globalData || globalData.length === 0) return;
 
+                // Llenar menús dinámicamente usando los nombres del query original
                 const dropdownProc = document.getElementById('procesoFilter');
-                const procesosUnicos = [...new Set(globalData.map(item => item.proc || 'Sin Especificar'))].sort();
+                const procesosUnicos = [...new Set(globalData.map(item => item.proceso_detonador || 'Sin Especificar'))].sort();
                 procesosUnicos.forEach(proceso => {
                     dropdownProc.innerHTML += `<option value="${proceso}">${proceso}</option>`;
                 });
@@ -212,13 +213,13 @@
                 const dropdownDia = document.getElementById('diaFilter');
                 const diasSet = new Set();
                 globalData.forEach(item => {
-                    if(item.fecha) {
-                        const d = new Date(item.fecha);
+                    if(item.fecha_hora) {
+                        const d = new Date(item.fecha_hora);
                         const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                         diasSet.add(diaStr);
                     }
                 });
-                const diasUnicos = [...diasSet].sort().reverse();
+                const diasUnicos = [...diasSet].sort().reverse(); // Del más reciente al más antiguo
                 diasUnicos.forEach(dia => {
                     dropdownDia.innerHTML += `<option value="${dia}">${dia}</option>`;
                 });
@@ -233,25 +234,25 @@
             
             let dataFiltradaProceso = globalData;
             if (procFilter !== "ALL") {
-                dataFiltradaProceso = globalData.filter(row => (row.proc || 'Sin Especificar') === procFilter);
+                dataFiltradaProceso = globalData.filter(row => (row.proceso_detonador || 'Sin Especificar') === procFilter);
             }
 
             let ultimaHoraData = [];
             if (globalData.length > 0) {
-                const maxTime = Math.max(...globalData.map(row => new Date(row.fecha).getTime()));
+                const maxTime = Math.max(...globalData.map(row => new Date(row.fecha_hora).getTime()));
                 const maxDateObj = new Date(maxTime);
                 
                 document.getElementById('label-ultima-hora').innerText = 
                     `${String(maxDateObj.getDate()).padStart(2, '0')}/${String(maxDateObj.getMonth()+1).padStart(2, '0')} a las ${String(maxDateObj.getHours()).padStart(2, '0')}:00`;
 
-                ultimaHoraData = dataFiltradaProceso.filter(row => new Date(row.fecha).getTime() === maxTime);
+                ultimaHoraData = dataFiltradaProceso.filter(row => new Date(row.fecha_hora).getTime() === maxTime);
             }
             renderDashboard(ultimaHoraData);
             
             let dataParaPicos = dataFiltradaProceso;
             if (diaFilter !== "ALL") {
                 dataParaPicos = dataFiltradaProceso.filter(row => {
-                    const d = new Date(row.fecha);
+                    const d = new Date(row.fecha_hora);
                     const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                     return diaStr === diaFilter;
                 });
@@ -266,12 +267,12 @@
             const hvMap = { 'NO_HV': 0, 'HV': 0 };
 
             data.forEach(row => {
-                const piezas = parseFloat(row.pz_t) || 0;
-                const montoTotal = parseFloat(row.mon_t) || 0;
-                const pend = parseFloat(row.mon_p) || 0;
-                const conc = parseFloat(row.mon_c) || 0;
-                const proceso = row.proc || 'Sin Especificar';
-                const hv = row.cat_hv || 'NO_HV';
+                const piezas = parseFloat(row.cantidad_total_piezas) || 0;
+                const montoTotal = parseFloat(row.monto_total_perdido) || 0;
+                const pend = parseFloat(row.monto_pendiente) || 0;
+                const conc = parseFloat(row.monto_conciliado) || 0;
+                const proceso = row.proceso_detonador || 'Sin Especificar';
+                const hv = row.categoria_hv || 'NO_HV';
 
                 totalPiezas += piezas;
                 montoPendiente += pend;
@@ -312,20 +313,41 @@
                 },
                 options: { 
                     responsive: true, maintainAspectRatio: false, 
-                    plugins: { legend: { position: 'right', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: function(context) { const label = context.label || ''; const monto = context.raw || 0; const piezas = procesosMap[label].piezas; return ` ${label}: $${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})} (${piezas} pzas)`; } } } } 
+                    plugins: { 
+                        legend: { position: 'right', labels: { boxWidth: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const monto = context.raw || 0;
+                                    const piezas = procesosMap[label].piezas;
+                                    return ` ${label}: $${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})} (${piezas} pzas)`;
+                                }
+                            }
+                        }
+                    } 
                 }
             });
 
             dashboardCharts.conciliacion = new Chart(document.getElementById('conciliacionChart'), {
                 type: 'pie',
-                data: { labels: ['Pendiente', 'Conciliado'], datasets: [{ data: [montoPendiente, montoConciliado], backgroundColor: ['#ff4d4d', '#00a650'], borderWidth: 2 }] },
+                data: {
+                    labels: ['Pendiente', 'Conciliado'],
+                    datasets: [{ data: [montoPendiente, montoConciliado], backgroundColor: ['#ff4d4d', '#00a650'], borderWidth: 2 }]
+                },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
             });
 
             dashboardCharts.hv = new Chart(document.getElementById('hvChart'), {
                 type: 'bar',
-                data: { labels: Object.keys(hvMap), datasets: [{ label: 'Monto Perdido ($)', data: Object.values(hvMap), backgroundColor: ['#2968c8', '#ffb34d'], borderRadius: 6 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '$' + value; } } } } }
+                data: {
+                    labels: Object.keys(hvMap),
+                    datasets: [{ label: 'Monto Perdido ($)', data: Object.values(hvMap), backgroundColor: ['#2968c8', '#ffb34d'], borderRadius: 6 }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: function(value) { return '$' + value; } } } }
+                }
             });
 
             const tbodyPendientes = document.getElementById('tbody-pendientes');
@@ -334,14 +356,14 @@
             tbodyConciliados.innerHTML = '';
 
             data.forEach(row => {
-                const piezas = parseFloat(row.pz_t) || 0;
-                const monto = parseFloat(row.mon_t) || 0;
-                const montoConc = parseFloat(row.mon_c) || 0;
+                const piezas = parseFloat(row.cantidad_total_piezas) || 0;
+                const monto = parseFloat(row.monto_total_perdido) || 0;
+                const montoConc = parseFloat(row.monto_conciliado) || 0;
 
                 const htmlRow = `
                     <tr>
-                        <td><strong>${row.id || '-'}</strong></td>
-                        <td>${row.proc || '-'}</td>
+                        <td><strong>${row.INVENTORY_ID || '-'}</strong></td>
+                        <td>${row.proceso_detonador || '-'}</td>
                         <td>${piezas.toLocaleString('es-MX')}</td>
                         <td>$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
                     </tr>
@@ -359,16 +381,16 @@
             let procesosUnicos = new Set();
 
             data.forEach(row => {
-                if(!row.fecha) return;
+                if(!row.fecha_hora) return;
                 
-                const fechaRaw = new Date(row.fecha);
+                const fechaRaw = new Date(row.fecha_hora);
                 const dia = String(fechaRaw.getDate()).padStart(2, '0');
                 const mes = String(fechaRaw.getMonth() + 1).padStart(2, '0');
                 const hora = String(fechaRaw.getHours()).padStart(2, '0');
                 
                 const labelHora = `${dia}/${mes} ${hora}:00`; 
-                const proceso = row.proc || 'Sin Especificar';
-                const monto = parseFloat(row.mon_t) || 0;
+                const proceso = row.proceso_detonador || 'Sin Especificar';
+                const monto = parseFloat(row.monto_total_perdido) || 0;
 
                 procesosUnicos.add(proceso);
                 if(!hourMap[labelHora]) hourMap[labelHora] = { sortKey: fechaRaw.getTime() };
@@ -396,12 +418,30 @@
 
             dashboardCharts.hourly = new Chart(document.getElementById('hourlyStackedChart'), {
                 type: 'line',
-                data: { labels: sortedLabels, datasets: datasets },
+                data: {
+                    labels: sortedLabels,
+                    datasets: datasets
+                },
                 options: {
-                    responsive: true, maintainAspectRatio: false,
+                    responsive: true, 
+                    maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 15, usePointStyle: true } }, tooltip: { callbacks: { label: function(context) { const val = context.raw || 0; if(val === 0) return null; return ` ${context.dataset.label}: $${val.toLocaleString('es-MX', {minimumFractionDigits: 2})}`; } } } },
-                    scales: { x: { grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { callback: function(value) { return '$' + value; } } } }
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 15, usePointStyle: true } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const val = context.raw || 0;
+                                    if(val === 0) return null; 
+                                    return ` ${context.dataset.label}: $${val.toLocaleString('es-MX', {minimumFractionDigits: 2})}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, ticks: { callback: function(value) { return '$' + value; } } }
+                    }
                 }
             });
         }
