@@ -68,7 +68,7 @@
     <div class="container">
         
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard (Última Hora)</button>
+            <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard Principal</button>
             <button class="tab-btn" onclick="switchTab('analisis_picos')">📈 Picos (Últimos 3 Días)</button>
             <button class="tab-btn" onclick="switchTab('historico')">📅 Sábana de Datos (Sheets)</button>
         </div>
@@ -76,9 +76,16 @@
         <!-- Filtros Globales -->
         <div class="filter-bar">
             <div class="filter-group">
-                <label>Día (Aplica a Gráfica de Picos):</label>
-                <select id="diaFilter" onchange="applyFilters()">
+                <label>Día:</label>
+                <select id="diaFilter" onchange="updateHourDropdown()">
                     <option value="ALL">Últimos 3 Días</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Hora (Aplica a Dashboard):</label>
+                <select id="horaFilter" onchange="applyFilters()">
+                    <option value="LAST">Última Hora Disponible</option>
+                    <option value="ALL">Todas las horas (Día completo)</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -89,10 +96,10 @@
             </div>
         </div>
 
-        <!-- DASHBOARD ACTUAL (ÚLTIMA HORA) -->
+        <!-- DASHBOARD PRINCIPAL -->
         <div id="dashboard" class="tab-content active">
-            <div style="background: #e6f2ff; color: #004085; padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: bold;">
-                ⏱️ Mostrando datos exclusivamente de la última hora registrada: <span id="label-ultima-hora">Calculando...</span>
+            <div id="label-ultima-hora" style="background: #e6f2ff; color: #004085; padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; font-weight: bold;">
+                ⏱️ Calculando datos...
             </div>
 
             <div class="kpi-container">
@@ -127,7 +134,7 @@
 
             <div class="tables-container">
                 <div class="table-card">
-                    <h3 style="color: var(--danger);">🔴 Casos Pendientes (Última Hora)</h3>
+                    <h3 style="color: var(--danger);">🔴 Casos Pendientes</h3>
                     <div class="table-wrapper">
                         <table id="table-pendientes">
                             <thead><tr><th>ID Inventario</th><th>Proceso</th><th>Piezas</th><th>Monto</th></tr></thead>
@@ -143,7 +150,7 @@
                     </div>
                 </div>
                 <div class="table-card">
-                    <h3 style="color: var(--text-kpi);">🟢 Casos Conciliados (Última Hora)</h3>
+                    <h3 style="color: var(--text-kpi);">🟢 Casos Conciliados</h3>
                     <div class="table-wrapper">
                         <table id="table-conciliados">
                             <thead><tr><th>ID Inventario</th><th>Proceso</th><th>Piezas</th><th>Monto</th></tr></thead>
@@ -161,12 +168,12 @@
             </div>
         </div>
 
-        <!-- NUEVA PESTAÑA: GRÁFICA DE PICOS -->
+        <!-- PESTAÑA: GRÁFICA DE PICOS -->
         <div id="analisis_picos" class="tab-content">
             <div class="chart-card full-width">
-                <h3>Picos de Lost Total por Hora (Últimos 3 Días)</h3>
+                <h3>Picos de Lost Total por Hora</h3>
                 <p style="text-align: center; font-size: 13px; color: #666; margin-bottom: 15px;">
-                    Visualizando el total de lost detonado (Conciliado + Pendiente). Usa el filtro de "Día" arriba para ver el detalle de 24 horas.
+                    Visualizando el total detonado. La gráfica se ajusta según el "Día" y "Proceso" que selecciones en los filtros.
                 </p>
                 <div class="canvas-wrapper large">
                     <canvas id="hourlyStackedChart"></canvas>
@@ -203,12 +210,14 @@
                 globalData = await response.json();
                 if (!globalData || globalData.length === 0) return;
 
+                // Llenar Procesos
                 const dropdownProc = document.getElementById('procesoFilter');
                 const procesosUnicos = [...new Set(globalData.map(item => item.proc || 'Sin Especificar'))].sort();
                 procesosUnicos.forEach(proceso => {
                     dropdownProc.innerHTML += `<option value="${proceso}">${proceso}</option>`;
                 });
 
+                // Llenar Días
                 const dropdownDia = document.getElementById('diaFilter');
                 const diasSet = new Set();
                 globalData.forEach(item => {
@@ -223,40 +232,100 @@
                     dropdownDia.innerHTML += `<option value="${dia}">${dia}</option>`;
                 });
 
-                applyFilters();
+                // Actualizar horas y aplicar filtros
+                updateHourDropdown();
             } catch (error) { console.error("Error:", error); }
         }
 
-        function applyFilters() {
-            const procFilter = document.getElementById("procesoFilter").value;
+        function updateHourDropdown() {
             const diaFilter = document.getElementById("diaFilter").value;
+            const horaFilter = document.getElementById("horaFilter");
+            const currentSelection = horaFilter.value;
             
-            let dataFiltradaProceso = globalData;
-            if (procFilter !== "ALL") {
-                dataFiltradaProceso = globalData.filter(row => (row.proc || 'Sin Especificar') === procFilter);
-            }
-
-            let ultimaHoraData = [];
-            if (globalData.length > 0) {
-                const maxTime = Math.max(...globalData.map(row => new Date(row.fecha.replace(' ', 'T')).getTime()));
-                const maxDateObj = new Date(maxTime);
-                
-                document.getElementById('label-ultima-hora').innerText = 
-                    `${String(maxDateObj.getDate()).padStart(2, '0')}/${String(maxDateObj.getMonth()+1).padStart(2, '0')} a las ${String(maxDateObj.getHours()).padStart(2, '0')}:00`;
-
-                ultimaHoraData = dataFiltradaProceso.filter(row => new Date(row.fecha.replace(' ', 'T')).getTime() === maxTime);
-            }
-            renderDashboard(ultimaHoraData);
+            horaFilter.innerHTML = `
+                <option value="LAST">Última Hora Disponible</option>
+                <option value="ALL">Todas las horas (Día completo)</option>
+            `;
             
-            let dataParaPicos = dataFiltradaProceso;
+            let dataDia = globalData;
             if (diaFilter !== "ALL") {
-                dataParaPicos = dataFiltradaProceso.filter(row => {
+                dataDia = globalData.filter(row => {
+                    if(!row.fecha) return false;
                     const d = new Date(row.fecha.replace(' ', 'T'));
                     const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                     return diaStr === diaFilter;
                 });
             }
-            renderHourlyChart(dataParaPicos);
+            
+            const horasSet = new Set();
+            dataDia.forEach(item => {
+                if(item.fecha) {
+                    const d = new Date(item.fecha.replace(' ', 'T'));
+                    horasSet.add(String(d.getHours()).padStart(2, '0') + ':00');
+                }
+            });
+            
+            const horasUnicas = [...horasSet].sort().reverse();
+            horasUnicas.forEach(h => {
+                horaFilter.innerHTML += `<option value="${h}">${h}</option>`;
+            });
+            
+            if([...horaFilter.options].some(opt => opt.value === currentSelection)) {
+                horaFilter.value = currentSelection;
+            }
+            
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const procFilter = document.getElementById("procesoFilter").value;
+            const diaFilter = document.getElementById("diaFilter").value;
+            const horaFilter = document.getElementById("horaFilter").value;
+            
+            // 1. Filtrar por Día
+            let dataFiltrada = globalData;
+            if (diaFilter !== "ALL") {
+                dataFiltrada = globalData.filter(row => {
+                    if(!row.fecha) return false;
+                    const d = new Date(row.fecha.replace(' ', 'T'));
+                    const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    return diaStr === diaFilter;
+                });
+            }
+
+            // 2. Filtrar por Proceso
+            if (procFilter !== "ALL") {
+                dataFiltrada = dataFiltrada.filter(row => (row.proc || 'Sin Especificar') === procFilter);
+            }
+
+            // 3. Filtrar Dashboard por Hora
+            let dashboardData = dataFiltrada;
+            
+            if (dataFiltrada.length > 0) {
+                if (horaFilter === "LAST") {
+                    const maxTime = Math.max(...dataFiltrada.map(row => new Date(row.fecha.replace(' ', 'T')).getTime()));
+                    dashboardData = dataFiltrada.filter(row => new Date(row.fecha.replace(' ', 'T')).getTime() === maxTime);
+                    const maxDateObj = new Date(maxTime);
+                    document.getElementById('label-ultima-hora').innerHTML = `⏱️ Mostrando: <strong>Última hora registrada (${String(maxDateObj.getDate()).padStart(2, '0')}/${String(maxDateObj.getMonth()+1).padStart(2, '0')} a las ${String(maxDateObj.getHours()).padStart(2, '0')}:00)</strong>`;
+                } else if (horaFilter === "ALL") {
+                    document.getElementById('label-ultima-hora').innerHTML = `⏱️ Mostrando: <strong>Todas las horas para el día/filtro seleccionado</strong>`;
+                } else {
+                    dashboardData = dataFiltrada.filter(row => {
+                        const d = new Date(row.fecha.replace(' ', 'T'));
+                        const horaStr = String(d.getHours()).padStart(2, '0') + ':00';
+                        return horaStr === horaFilter;
+                    });
+                    document.getElementById('label-ultima-hora').innerHTML = `⏱️ Mostrando: <strong>Hora seleccionada (${horaFilter})</strong>`;
+                }
+            } else {
+                document.getElementById('label-ultima-hora').innerHTML = `⏱️ Sin datos para los filtros seleccionados`;
+                dashboardData = [];
+            }
+
+            renderDashboard(dashboardData);
+            
+            // La gráfica de picos muestra todas las horas del día filtrado
+            renderHourlyChart(dataFiltrada);
         }
 
         function renderDashboard(data) {
