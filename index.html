@@ -213,7 +213,7 @@
                 const diasSet = new Set();
                 globalData.forEach(item => {
                     if(item.fecha) {
-                        const d = new Date(item.fecha);
+                        const d = new Date(item.fecha.replace(' ', 'T'));
                         const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                         diasSet.add(diaStr);
                     }
@@ -238,20 +238,20 @@
 
             let ultimaHoraData = [];
             if (globalData.length > 0) {
-                const maxTime = Math.max(...globalData.map(row => new Date(row.fecha).getTime()));
+                const maxTime = Math.max(...globalData.map(row => new Date(row.fecha.replace(' ', 'T')).getTime()));
                 const maxDateObj = new Date(maxTime);
                 
                 document.getElementById('label-ultima-hora').innerText = 
                     `${String(maxDateObj.getDate()).padStart(2, '0')}/${String(maxDateObj.getMonth()+1).padStart(2, '0')} a las ${String(maxDateObj.getHours()).padStart(2, '0')}:00`;
 
-                ultimaHoraData = dataFiltradaProceso.filter(row => new Date(row.fecha).getTime() === maxTime);
+                ultimaHoraData = dataFiltradaProceso.filter(row => new Date(row.fecha.replace(' ', 'T')).getTime() === maxTime);
             }
             renderDashboard(ultimaHoraData);
             
             let dataParaPicos = dataFiltradaProceso;
             if (diaFilter !== "ALL") {
                 dataParaPicos = dataFiltradaProceso.filter(row => {
-                    const d = new Date(row.fecha);
+                    const d = new Date(row.fecha.replace(' ', 'T'));
                     const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                     return diaStr === diaFilter;
                 });
@@ -361,7 +361,7 @@
             data.forEach(row => {
                 if(!row.fecha) return;
                 
-                const fechaRaw = new Date(row.fecha);
+                const fechaRaw = new Date(row.fecha.replace(' ', 'T'));
                 const dia = String(fechaRaw.getDate()).padStart(2, '0');
                 const mes = String(fechaRaw.getMonth() + 1).padStart(2, '0');
                 const hora = String(fechaRaw.getHours()).padStart(2, '0');
