@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard FBM Issues - MXNL01</title>
+    <title>Lost x Hora MXNL01</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -69,7 +69,7 @@
         
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard Principal</button>
-            <button class="tab-btn" onclick="switchTab('analisis_picos')">📈 Picos (Últimos 3 Días)</button>
+            <button class="tab-btn" onclick="switchTab('analisis_picos')">📈 Picos por Proceso</button>
             <button class="tab-btn" onclick="switchTab('historico')">📅 Sábana de Datos (Sheets)</button>
         </div>
 
@@ -170,8 +170,17 @@
 
         <!-- PESTAÑA: GRÁFICA DE PICOS -->
         <div id="analisis_picos" class="tab-content">
+            <!-- Nueva gráfica: Solo monto total -->
+            <div class="chart-card full-width" style="margin-bottom: 20px;">
+                <h3>Picos de Lost por Hora (Monto Total General)</h3>
+                <div class="canvas-wrapper large">
+                    <canvas id="hourlyTotalChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfica original: Desglose por proceso -->
             <div class="chart-card full-width">
-                <h3>Picos de Lost Total por Hora</h3>
+                <h3>Picos de Lost por Hora (Desglose por Proceso)</h3>
                 <p style="text-align: center; font-size: 13px; color: #666; margin-bottom: 15px;">
                     Visualizando el total detonado. La gráfica se ajusta según el "Día" y "Proceso" que selecciones en los filtros.
                 </p>
@@ -325,7 +334,7 @@
             renderDashboard(dashboardData);
             
             // La gráfica de picos muestra todas las horas del día filtrado
-            renderHourlyChart(dataFiltrada);
+            renderHourlyCharts(dataFiltrada);
         }
 
         function renderDashboard(data) {
@@ -421,8 +430,9 @@
             });
         }
 
-        function renderHourlyChart(data) {
+        function renderHourlyCharts(data) {
             if(dashboardCharts.hourly) dashboardCharts.hourly.destroy();
+            if(dashboardCharts.hourlyTotal) dashboardCharts.hourlyTotal.destroy();
 
             let hourMap = {};
             let procesosUnicos = new Set();
@@ -440,15 +450,48 @@
                 const monto = parseFloat(row.mon_t) || 0;
 
                 procesosUnicos.add(proceso);
-                if(!hourMap[labelHora]) hourMap[labelHora] = { sortKey: fechaRaw.getTime() };
+                if(!hourMap[labelHora]) hourMap[labelHora] = { sortKey: fechaRaw.getTime(), total: 0 };
                 if(!hourMap[labelHora][proceso]) hourMap[labelHora][proceso] = 0;
                 
                 hourMap[labelHora][proceso] += monto;
+                hourMap[labelHora].total += monto; // Acumulador para la gráfica total
             });
 
             const sortedLabels = Object.keys(hourMap).sort((a, b) => hourMap[a].sortKey - hourMap[b].sortKey);
-            const arrayProcesos = Array.from(procesosUnicos);
+            
+            // 1. Renderizar la gráfica del MONTO TOTAL
+            const totalData = sortedLabels.map(hora => hourMap[hora].total || 0);
 
+            dashboardCharts.hourlyTotal = new Chart(document.getElementById('hourlyTotalChart'), {
+                type: 'line',
+                data: { 
+                    labels: sortedLabels, 
+                    datasets: [{
+                        label: 'Monto Total ($)',
+                        data: totalData,
+                        backgroundColor: '#2968c880', // Azul semi-transparente
+                        borderColor: '#2968c8',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }] 
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { boxWidth: 15, usePointStyle: true } }, 
+                        tooltip: { callbacks: { label: function(context) { const val = context.raw || 0; if(val === 0) return null; return ` Total General: $${val.toLocaleString('es-MX', {minimumFractionDigits: 2})}`; } } } 
+                    },
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: function(value) { return '$' + value; } } } }
+                }
+            });
+
+
+            // 2. Renderizar la gráfica de DESGLOSE POR PROCESO
+            const arrayProcesos = Array.from(procesosUnicos);
             const datasets = arrayProcesos.map((proceso, index) => {
                 return {
                     label: proceso,
