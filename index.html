@@ -21,6 +21,25 @@
         body { background-color: var(--bg-app); padding: 20px; color: #333; }
         .container { max-width: 1400px; margin: 0 auto; }
 
+        /* Encabezado Principal Profesional */
+        .main-header {
+            background: var(--bg-card);
+            padding: 25px 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+            text-align: center;
+            border-bottom: 5px solid #2968c8;
+        }
+        .main-header h1 {
+            color: var(--text-title);
+            font-size: 32px;
+            font-weight: 900;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
         /* Pestañas */
         .tabs { display: flex; gap: 15px; margin-bottom: 20px; }
         .tab-btn { background: #e0e0e0; border: none; font-size: 15px; font-weight: bold; color: #555; cursor: pointer; padding: 12px 25px; border-radius: 8px; transition: 0.3s; }
@@ -67,9 +86,14 @@
 
     <div class="container">
         
+        <!-- Encabezado Visible en todas las pestañas -->
+        <div class="main-header">
+            <h1>Lost x Hora MXNL01</h1>
+        </div>
+
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard Principal</button>
-            <button class="tab-btn" onclick="switchTab('analisis_picos')">📈 Picos por Proceso</button>
+            <button class="tab-btn" onclick="switchTab('analisis_picos')">📈 Picos de Lost por Hora</button>
             <button class="tab-btn" onclick="switchTab('historico')">📅 Sábana de Datos (Sheets)</button>
         </div>
 
