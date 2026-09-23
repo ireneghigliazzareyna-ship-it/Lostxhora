@@ -243,9 +243,13 @@
                 globalData = await response.json();
                 if (!globalData || globalData.length === 0) return;
 
+                // Helper to abstract field names
+                const getProc = (item) => item.proceso_detonador || item.proc || 'Sin Especificar';
+                const getFecha = (item) => item.fecha_hora || item.fecha || null;
+
                 // Llenar Procesos
                 const dropdownProc = document.getElementById('procesoFilter');
-                const procesosUnicos = [...new Set(globalData.map(item => item.proc || 'Sin Especificar'))].sort();
+                const procesosUnicos = [...new Set(globalData.map(item => getProc(item)))].sort();
                 procesosUnicos.forEach(proceso => {
                     dropdownProc.innerHTML += `<option value="${proceso}">${proceso}</option>`;
                 });
@@ -254,8 +258,9 @@
                 const dropdownDia = document.getElementById('diaFilter');
                 const diasSet = new Set();
                 globalData.forEach(item => {
-                    if(item.fecha) {
-                        const d = new Date(item.fecha.replace(' ', 'T'));
+                    const fechaVal = getFecha(item);
+                    if(fechaVal) {
+                        const d = new Date(fechaVal.replace(' ', 'T'));
                         const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                         diasSet.add(diaStr);
                     }
@@ -280,11 +285,14 @@
                 <option value="ALL">Todas las horas (Día completo)</option>
             `;
             
+            const getFecha = (item) => item.fecha_hora || item.fecha || null;
+
             let dataDia = globalData;
             if (diaFilter !== "ALL") {
                 dataDia = globalData.filter(row => {
-                    if(!row.fecha) return false;
-                    const d = new Date(row.fecha.replace(' ', 'T'));
+                    const fechaVal = getFecha(row);
+                    if(!fechaVal) return false;
+                    const d = new Date(fechaVal.replace(' ', 'T'));
                     const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                     return diaStr === diaFilter;
                 });
@@ -292,8 +300,9 @@
             
             const horasSet = new Set();
             dataDia.forEach(item => {
-                if(item.fecha) {
-                    const d = new Date(item.fecha.replace(' ', 'T'));
+                const fechaVal = getFecha(item);
+                if(fechaVal) {
+                    const d = new Date(fechaVal.replace(' ', 'T'));
                     horasSet.add(String(d.getHours()).padStart(2, '0') + ':00');
                 }
             });
@@ -315,12 +324,16 @@
             const diaFilter = document.getElementById("diaFilter").value;
             const horaFilter = document.getElementById("horaFilter").value;
             
+            const getProc = (item) => item.proceso_detonador || item.proc || 'Sin Especificar';
+            const getFecha = (item) => item.fecha_hora || item.fecha || null;
+
             // 1. Filtrar por Día
             let dataFiltrada = globalData;
             if (diaFilter !== "ALL") {
                 dataFiltrada = globalData.filter(row => {
-                    if(!row.fecha) return false;
-                    const d = new Date(row.fecha.replace(' ', 'T'));
+                    const fechaVal = getFecha(row);
+                    if(!fechaVal) return false;
+                    const d = new Date(fechaVal.replace(' ', 'T'));
                     const diaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                     return diaStr === diaFilter;
                 });
@@ -328,7 +341,7 @@
 
             // 2. Filtrar por Proceso
             if (procFilter !== "ALL") {
-                dataFiltrada = dataFiltrada.filter(row => (row.proc || 'Sin Especificar') === procFilter);
+                dataFiltrada = dataFiltrada.filter(row => getProc(row) === procFilter);
             }
 
             // 3. Filtrar Dashboard por Hora
@@ -336,15 +349,15 @@
             
             if (dataFiltrada.length > 0) {
                 if (horaFilter === "LAST") {
-                    const maxTime = Math.max(...dataFiltrada.map(row => new Date(row.fecha.replace(' ', 'T')).getTime()));
-                    dashboardData = dataFiltrada.filter(row => new Date(row.fecha.replace(' ', 'T')).getTime() === maxTime);
+                    const maxTime = Math.max(...dataFiltrada.map(row => new Date(getFecha(row).replace(' ', 'T')).getTime()));
+                    dashboardData = dataFiltrada.filter(row => new Date(getFecha(row).replace(' ', 'T')).getTime() === maxTime);
                     const maxDateObj = new Date(maxTime);
                     document.getElementById('label-ultima-hora').innerHTML = `⏱️ Mostrando: <strong>Última hora registrada (${String(maxDateObj.getDate()).padStart(2, '0')}/${String(maxDateObj.getMonth()+1).padStart(2, '0')} a las ${String(maxDateObj.getHours()).padStart(2, '0')}:00)</strong>`;
                 } else if (horaFilter === "ALL") {
                     document.getElementById('label-ultima-hora').innerHTML = `⏱️ Mostrando: <strong>Todas las horas para el día/filtro seleccionado</strong>`;
                 } else {
                     dashboardData = dataFiltrada.filter(row => {
-                        const d = new Date(row.fecha.replace(' ', 'T'));
+                        const d = new Date(getFecha(row).replace(' ', 'T'));
                         const horaStr = String(d.getHours()).padStart(2, '0') + ':00';
                         return horaStr === horaFilter;
                     });
@@ -368,12 +381,13 @@
             const hvMap = { 'NO_HV': 0, 'HV': 0 };
 
             data.forEach(row => {
-                const piezas = parseFloat(row.pz_t) || 0;
-                const montoTotal = parseFloat(row.mon_t) || 0;
-                const pend = parseFloat(row.mon_p) || 0;
-                const conc = parseFloat(row.mon_c) || 0;
-                const proceso = row.proc || 'Sin Especificar';
-                const hv = row.cat_hv || 'NO_HV';
+                const piezas = parseFloat(row.cantidad_total_piezas || row.pz_t) || 0;
+                const montoTotal = parseFloat(row.monto_total_perdido || row.mon_t) || 0;
+                const pend = parseFloat(row.monto_pendiente || row.mon_p) || 0;
+                const conc = parseFloat(row.monto_conciliado || row.mon_c) || 0;
+                const proceso = row.proceso_detonador || row.proc || 'Sin Especificar';
+                const hv = row.categoria_hv || row.cat_hv || 'NO_HV';
+                const idVal = row.INVENTORY_ID || row.id || '-';
 
                 totalPiezas += piezas;
                 montoPendiente += pend;
@@ -436,14 +450,16 @@
             tbodyConciliados.innerHTML = '';
 
             data.forEach(row => {
-                const piezas = parseFloat(row.pz_t) || 0;
-                const monto = parseFloat(row.mon_t) || 0;
-                const montoConc = parseFloat(row.mon_c) || 0;
+                const piezas = parseFloat(row.cantidad_total_piezas || row.pz_t) || 0;
+                const monto = parseFloat(row.monto_total_perdido || row.mon_t) || 0;
+                const montoConc = parseFloat(row.monto_conciliado || row.mon_c) || 0;
+                const proceso = row.proceso_detonador || row.proc || '-';
+                const idVal = row.INVENTORY_ID || row.id || '-';
 
                 const htmlRow = `
                     <tr>
-                        <td><strong>${row.id || '-'}</strong></td>
-                        <td>${row.proc || '-'}</td>
+                        <td><strong>${idVal}</strong></td>
+                        <td>${proceso}</td>
                         <td>${piezas.toLocaleString('es-MX')}</td>
                         <td>$${monto.toLocaleString('es-MX', {minimumFractionDigits: 2})}</td>
                     </tr>
@@ -460,18 +476,21 @@
 
             let hourMap = {};
             let procesosUnicos = new Set();
+            
+            const getFecha = (item) => item.fecha_hora || item.fecha || null;
 
             data.forEach(row => {
-                if(!row.fecha) return;
+                const fechaVal = getFecha(row);
+                if(!fechaVal) return;
                 
-                const fechaRaw = new Date(row.fecha.replace(' ', 'T'));
+                const fechaRaw = new Date(fechaVal.replace(' ', 'T'));
                 const dia = String(fechaRaw.getDate()).padStart(2, '0');
                 const mes = String(fechaRaw.getMonth() + 1).padStart(2, '0');
                 const hora = String(fechaRaw.getHours()).padStart(2, '0');
                 
                 const labelHora = `${dia}/${mes} ${hora}:00`; 
-                const proceso = row.proc || 'Sin Especificar';
-                const monto = parseFloat(row.mon_t) || 0;
+                const proceso = row.proceso_detonador || row.proc || 'Sin Especificar';
+                const monto = parseFloat(row.monto_total_perdido || row.mon_t) || 0;
 
                 procesosUnicos.add(proceso);
                 if(!hourMap[labelHora]) hourMap[labelHora] = { sortKey: fechaRaw.getTime(), total: 0 };
